@@ -110,7 +110,7 @@ func initDeterministicFixture(t *testing.T) *deterministicFixture {
 	sdkCtx := sdk.UnwrapSDKContext(integrationApp.Context())
 
 	// Register MsgServer and QueryServer
-	banktypes.RegisterMsgServer(integrationApp.MsgServiceRouter(), keeper.NewMsgServerImpl(bankKeeper))
+	banktypes.RegisterMsgServer(integrationApp.MsgServiceRouter(), keeper.NewMsgServerImpl(bankKeeper, accountKeeper))
 	banktypes.RegisterQueryServer(integrationApp.QueryHelper(), keeper.NewQuerier(&bankKeeper))
 
 	qr := integrationApp.QueryHelper()

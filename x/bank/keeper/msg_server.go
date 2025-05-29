@@ -16,14 +16,18 @@ import (
 
 type msgServer struct {
 	Keeper
+	ak types.AccountKeeper
 }
 
 var _ types.MsgServer = msgServer{}
 
 // NewMsgServerImpl returns an implementation of the bank MsgServer interface
 // for the provided Keeper.
-func NewMsgServerImpl(keeper Keeper) types.MsgServer {
-	return &msgServer{Keeper: keeper}
+func NewMsgServerImpl(keeper Keeper, ak types.AccountKeeper) types.MsgServer {
+	return &msgServer{
+		Keeper: keeper,
+		ak:     ak,
+	}
 }
 
 func (k msgServer) Send(goCtx context.Context, msg *types.MsgSend) (*types.MsgSendResponse, error) {
@@ -32,17 +36,13 @@ func (k msgServer) Send(goCtx context.Context, msg *types.MsgSend) (*types.MsgSe
 		err      error
 	)
 
-	if base, ok := k.Keeper.(BaseKeeper); ok {
-		from, err = base.ak.AddressCodec().StringToBytes(msg.FromAddress)
-		if err != nil {
-			return nil, sdkerrors.ErrInvalidAddress.Wrapf("invalid from address: %s", err)
-		}
-		to, err = base.ak.AddressCodec().StringToBytes(msg.ToAddress)
-		if err != nil {
-			return nil, sdkerrors.ErrInvalidAddress.Wrapf("invalid to address: %s", err)
-		}
-	} else {
-		return nil, sdkerrors.ErrInvalidRequest.Wrapf("invalid keeper type: %T", k.Keeper)
+	from, err = k.ak.AddressCodec().StringToBytes(msg.FromAddress)
+	if err != nil {
+		return nil, sdkerrors.ErrInvalidAddress.Wrapf("invalid from address: %s", err)
+	}
+	to, err = k.ak.AddressCodec().StringToBytes(msg.ToAddress)
+	if err != nil {
+		return nil, sdkerrors.ErrInvalidAddress.Wrapf("invalid to address: %s", err)
 	}
 
 	if !msg.Amount.IsValid() {
@@ -109,17 +109,13 @@ func (k msgServer) MultiSend(goCtx context.Context, msg *types.MsgMultiSend) (*t
 	}
 
 	for _, out := range msg.Outputs {
-		if base, ok := k.Keeper.(BaseKeeper); ok {
-			accAddr, err := base.ak.AddressCodec().StringToBytes(out.Address)
-			if err != nil {
-				return nil, err
-			}
+		accAddr, err := k.ak.AddressCodec().StringToBytes(out.Address)
+		if err != nil {
+			return nil, err
+		}
 
-			if k.BlockedAddr(accAddr) {
-				return nil, errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", out.Address)
-			}
-		} else {
-			return nil, sdkerrors.ErrInvalidRequest.Wrapf("invalid keeper type: %T", k.Keeper)
+		if k.BlockedAddr(accAddr) {
+			return nil, errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", out.Address)
 		}
 	}
 
